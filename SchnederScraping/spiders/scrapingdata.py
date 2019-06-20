@@ -6,62 +6,69 @@ import os
 import csv
 import time
 from more_itertools import unique_everseen
+import scrapy
+import urllib
+import requests
 
 
-class PepcoSpider(Spider):
-    name = "pepco"
-    start_urls = [
-        'https://secure.pepco.com/Pages/Login.aspx'
-    ]
-    passed_vals = []
+class SiteProductItem(scrapy.Item):
+    ASIN = scrapy.Field()
+    Model_Number = scrapy.Field()
+    Qty = scrapy.Field()
 
-    def __init__(self, download_directory=None, *args, **kwargs):
-        super(PepcoSpider, self).__init__(*args, **kwargs)
 
-        with open('Pepco Credentials All.csv', 'rb') as csvfile:
+class SCHSpider(Spider):
+    name = "scrapingdata"
+    allowed_domains = ['myseus.schneider-electric.com', 'ims.wsecure.schneider-electric.com']
+    DOMAIN_URL = 'https://www.myseus.schneider-electric.com'
+    START_URL = 'https://secureidentity.schneider-electric.com/identity/idp/login?app=0sp1H000000CabV&goto' \
+                'New=cHpPCYDETfPPyuJAxBqH&idpDisable=TRUE'
+
+    def __init__(self, **kwargs):
+
+        self.input_file = 'Schneider_SquareD.csv'
+
+        with open(self.input_file, 'r+') as csvfile:
             reader = csv.reader(csvfile)
-            self.password_list = []
-            self.username_list = []
-            self.accountOwnerID_credential_list = []
-            self.clientID_list = []
+            self.sku_list = []
             for row_index, row in enumerate(reader):
                 if row_index != 0:
-                    self.accountOwnerID_credential_list.append(row[0])
-                    self.username_list.append(row[1])
-                    self.password_list.append(row[2])
-                    self.clientID_list.append(row[3])
-
-        self.user_index = 0
-        self.download_directory = download_directory if download_directory else 'C:/Users/webguru/Downloads/pepco/'
-
-        if not os.path.exists(self.download_directory):
-            os.makedirs(self.download_directory)
+                    self.sku_list.append(row[0])
 
         cwd = os.getcwd().replace("\\", "//").replace('spiders', '')
         opt = webdriver.ChromeOptions()
         opt.add_argument("--start-maximized")
-        # opt.add_argument('--headless')
+        opt.add_argument('--headless')
         self.driver = webdriver.Chrome(executable_path='{}/chromedriver.exe'.format(cwd), chrome_options=opt)
 
-        with open('{}/scrapy.log'.format(cwd), 'r') as f:
-            self.logs = [i.strip() for i in f.readlines()]
-            f.close()
+        self.headers = {
+            "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/"
+                          "70.0.3538.102 Safari/537.36"
+        }
 
-    def login(self, user_index=None):
+        self.USERNAME = 'lenore@totalelectricny.com'
+        self.PASSWORD = 'Zilch12@5614'
+
+    def start_requests(self):
+
+        start_url = self.START_URL
+        yield scrapy.Request(url=start_url, callback=self.login)
+
+    def login(self, response):
         while True:
             try:
+                user_name = self.USERNAME
+                password = self.PASSWORD
 
                 user_email = self.driver.find_element_by_xpath(
-                    '//div[contains(@class, "exc-form-group-double")]//input[contains(@id, "Username")]')
-                user_name = self.username_list[user_index]
-                password = self.password_list[user_index]
+                    '//div[contains(@class, "inner-addon right-addon")]//input[contains(@id, "inputEmail")]')
                 user_email.send_keys(user_name)
                 user_password = self.driver.find_element_by_xpath(
-                    '//div[contains(@class, "exc-form-group-double")]//input[contains(@id,"Password")]'
+                    '//div[contains(@class, "inner-addon right-addon")]//input[contains(@id,"inputPassword3")]'
                 )
                 user_password.send_keys(password)
                 btn_login = self.driver.find_element_by_xpath(
-                    '//button[contains(@processing-button, "Signing In...")]'
+                    '//button[contains(@class, "btn btn-default btn-block active-btn")]'
                 )
                 btn_login.click()
                 break
